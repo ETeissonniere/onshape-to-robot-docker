@@ -1,21 +1,11 @@
-#! /bin/bash
+#!/bin/bash
 
-# use to call onshape-to-robot on the document passed as parameter
-# if --help or -h show help
-# if --assembly NAME or -a NAME, then assemblyName = NAME
-# if --isaac-fix or -f then edit robot/robot.urdf to replace "package:///" by "package://"
-#
-# when called this will create the below config file in robot/config.json:
-# {
-#  "documentId": "URL ARG",
-#  "outputFormat": "urdf",
-#  "addDummyBaseLink": true,
-#  "assemblyName": "assemblyName" # only if --assembly NAME or -a NAME is passed
-# }
-# then, this will call `onshape-to-robot robot` to generate the URDF file
-#
-# for the URL https://cad.onshape.com/documents/XXX/w/YYY/e/ZZZ,
-# the document id is the XXX
+# Script to call onshape-to-robot on the document passed as parameter
+# Usage: ./entrypoint.sh [options] <URL>
+# Options:
+#   -h, --help            Show help message and exit
+#   -a, --assembly NAME   Specify the assembly name
+#   -f, --isaac-fix       Apply Isaac fix to the URDF file
 
 show_help() {
   echo "Usage: $0 [options] <URL>"
@@ -46,37 +36,39 @@ if [ -z "$url" ]; then
   exit 1
 fi
 
-# If robot/config.json already exists, ask the user if they want to continue
+# Function to create config file
+create_config() {
+  documentId=$(echo ${url} | sed 's/.*documents\///' | sed 's/\/.*//')
+  echo "documentId: ${documentId}"
+
+  config="{
+    \"documentId\": \"${documentId}\",
+    \"outputFormat\": \"urdf\",
+    \"addDummyBaseLink\": true"
+  if [ -n "$assemblyName" ]; then
+    config+=",\n  \"assemblyName\": \"${assemblyName}\""
+  fi
+  config+="\n}"
+
+  echo -e $config > robot/config.json
+}
+
+# Check if robot/config.json exists
 if [ -f robot/config.json ]; then
   echo "robot/ already exists. Do you want to overwrite it? This will clear all files into it. (y/n)"
   read answer
-  if [ "$answer" != "${answer#[Yy]}" ]; then
+  if [[ "$answer" =~ ^[Yy]$ ]]; then
     echo "Overwriting robot/"
+    rm -rf robot
+    mkdir -p robot
+    create_config
   else
-    echo "Exiting..."
-    exit 1
+    echo "Reusing existing config file..."
   fi
+else
+  mkdir -p robot
+  create_config
 fi
-
-rm -rf robot
-mkdir -p robot
-
-echo "Downloading the robot description from Onshape..."
-
-documentId=$(echo ${url} | sed 's/.*documents\///' | sed 's/\/.*//')
-echo "documentId: ${documentId}"
-
-# Create the config file
-config="{
-  \"documentId\": \"${documentId}\",
-  \"outputFormat\": \"urdf\",
-  \"addDummyBaseLink\": true"
-if [ -n "$assemblyName" ]; then
-  config+=",\n  \"assemblyName\": \"${assemblyName}\""
-fi
-config+="\n}"
-
-echo -e $config > robot/config.json
 
 # Call onshape-to-robot
 echo "Running onshape-to-robot..."
