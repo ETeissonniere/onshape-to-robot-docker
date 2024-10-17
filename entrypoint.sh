@@ -3,6 +3,7 @@
 # use to call onshape-to-robot on the document passed as parameter
 # if --help or -h show help
 # if --assembly NAME or -a NAME, then assemblyName = NAME
+# if --isaac-fix or -f then edit robot/robot.urdf to replace "package:///" by "package://"
 #
 # when called this will create the below config file in robot/config.json:
 # {
@@ -22,15 +23,18 @@ show_help() {
   echo "Options:"
   echo "  -h, --help            Show this help message and exit"
   echo "  -a, --assembly NAME   Specify the assembly name"
+  echo "  -f, --isaac-fix       Apply Isaac fix to the URDF file"
 }
 
 assemblyName=""
+isaacFix=false
 
 # Parse CLI arguments
 while [[ "$#" -gt 0 ]]; do
   case $1 in
     -h|--help) show_help; exit 0 ;;
     -a|--assembly) assemblyName="$2"; shift ;;
+    -f|--isaac-fix) isaacFix=true ;;
     *) url="$1" ;;
   esac
   shift
@@ -77,3 +81,9 @@ echo -e $config > robot/config.json
 # Call onshape-to-robot
 echo "Running onshape-to-robot..."
 onshape-to-robot robot
+
+# Apply Isaac fix if requested
+if [ "$isaacFix" = true ]; then
+  echo "Applying Isaac fix..."
+  sed -i 's|package:///|package://|g' robot/robot.urdf
+fi
